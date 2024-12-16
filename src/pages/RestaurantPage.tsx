@@ -75,6 +75,11 @@ export const RestaurantPage = () => {
               name="time"
               className="rounded p-2 border"
             />
+            <select name="duration" className="form-select rounded p-2 border">
+              <option value="1">1 hour</option>
+              <option value="2">2 hours</option>
+              <option value="3">3 hours</option>
+            </select>
             <select name="people" className="form-select rounded p-2 border">
               <option value="1">1 person</option>
               <option value="2">2 people</option>
