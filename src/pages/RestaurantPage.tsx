@@ -1,35 +1,72 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router";
+import {
+  useCreateReservation,
+  useGetRestaurant,
+} from "../generated/restoappComponents";
+import { Form, Field } from "react-final-form";
+import { add, formatISO, parseISO } from "date-fns";
+import { queryClient } from "../main";
 
-const tables = [
-  {
-    number: 1,
-  },
-  {
-    number: 2,
-  },
-  {
-    number: 3,
-  },
-  {
-    number: 4,
-  },
-  {
-    number: 5,
-  },
-  {
-    number: 6,
-  },
-];
+interface ICreateReservationFormData {
+  time: string;
+  duration: number;
+}
 
 export const RestaurantPage = () => {
-  const { restaurant } = useParams();
-  const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const { restaurantUuid } = useParams();
+
+  const { data, isLoading } = useGetRestaurant({
+    pathParams: {
+      uuid: restaurantUuid as string,
+    },
+  });
+  const [selectedTableIndex, setSelectedTableIndex] = useState<number | null>(
+    null
+  );
+  const selectedTable = useMemo(() => {
+    if (!selectedTableIndex && selectedTableIndex !== 0) {
+      return;
+    }
+
+    return data?.tables?.[selectedTableIndex];
+  }, [selectedTableIndex, data]);
+  const { mutate, data: createData } = useCreateReservation({
+    onSuccess() {
+      queryClient.invalidateQueries();
+    },
+  });
+
+  const onSubmit = (body: ICreateReservationFormData) => {
+    console.log(body);
+
+    mutate({
+      body: {
+        tableUuid: selectedTable?.uuid,
+        startDate: formatISO(parseISO(body.time)),
+        endDate: formatISO(
+          add(parseISO(body.time), {
+            hours: Number(body.duration),
+          })
+        ),
+        clientPhone: "87773650344",
+        restaurantUuid: restaurantUuid,
+      },
+    });
+  };
+
+  if (isLoading) {
+    return "Loading!";
+  }
+
+  if (!data) {
+    return "Error!";
+  }
 
   return (
     <div className="flex flex-col h-screen">
       <header className="h-12 bg-slate-800 flex items-center justify-center">
-        <h2 className="text-2xl text-white">{restaurant}</h2>
+        <h2 className="text-2xl text-white">{data?.name}</h2>
       </header>
       <div className="flex flex-col w-full">
         <div className="w-full h-64 relative">
@@ -39,20 +76,17 @@ export const RestaurantPage = () => {
             className="w-full h-full"
           />
           <p className="absolute bottom-0 left-0 p-4 text-white bg-black bg-opacity-30">
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Aspernatur
-            dignissimos voluptate cumque rem quod harum laborum similique minima
-            reprehenderit eos atque, necessitatibus exercitationem rerum in
-            alias! Ratione error dolorem vel tempora. A porro non eum explicabo?
+            {data?.description}
           </p>
         </div>
         <div className="flex flex-col gap-4 p-4">
           <h3 className="text-2xl">Tables</h3>
           <div className="mx-auto grid grid-cols-3 gap-8">
-            {tables.map((table) => (
+            {data.tables?.map((table, idx) => (
               <div
                 key={table.number}
                 className={`w-20 h-20 text-3xl bg-slate-800 flex items-center justify-center text-white`}
-                onClick={() => setSelectedTable(table.number)}
+                onClick={() => setSelectedTableIndex(idx)}
               >
                 {table.number}
               </div>
@@ -61,38 +95,58 @@ export const RestaurantPage = () => {
         </div>
         {selectedTable && (
           <div className="flex flex-col gap-4 p-4">
-            <h4>Table N{selectedTable}</h4>
+            <h4>Table N{selectedTable.number}</h4>
             <div className="border flex flex-col items-start gap-2 p-2 text-sm">
               <p>Booked dates:</p>
               <ul className="ml-4 list-disc">
-                <li>Tue 10 Dec 18:30 - 20:30</li>
+                {selectedTable.reservations?.map((r) => (
+                  <li>
+                    {r.startDate} - {r.endDate}
+                  </li>
+                ))}
               </ul>
             </div>
-            <input
-              type="datetime-local"
-              onChange={(e) => console.log(e.target.value)}
-              defaultValue={new Date().toISOString()}
-              name="time"
-              className="rounded p-2 border"
-            />
-            <select name="duration" className="form-select rounded p-2 border">
-              <option value="1">1 hour</option>
-              <option value="2">2 hours</option>
-              <option value="3">3 hours</option>
-            </select>
-            <select name="people" className="form-select rounded p-2 border">
-              <option value="1">1 person</option>
-              <option value="2">2 people</option>
-              <option value="3">3 people</option>
-              <option value="4">4 people</option>
-              <option value="5">5 people</option>
-            </select>
-            <button
-              type="submit"
-              className="rounded bg-slate-800 text-white p-2 border"
-            >
-              Save
-            </button>
+            <Form
+              onSubmit={onSubmit}
+              render={({ handleSubmit }) => (
+                <form onSubmit={handleSubmit}>
+                  <Field
+                    name="time"
+                    component="input"
+                    defaultValue={new Date().toISOString()}
+                    className="rounded p-2 border"
+                    type="datetime-local"
+                  />
+                  <Field
+                    name="duration"
+                    defaultValue="1"
+                    component="select"
+                    className="form-select rounded p-2 border"
+                  >
+                    <option value="1">1 hour</option>
+                    <option value="2">2 hours</option>
+                    <option value="3">3 hours</option>
+                  </Field>
+                  <Field
+                    name="people"
+                    component="select"
+                    className="form-select rounded p-2 border"
+                  >
+                    <option value="1">1 person</option>
+                    <option value="2">2 people</option>
+                    <option value="3">3 people</option>
+                    <option value="4">4 people</option>
+                    <option value="5">5 people</option>
+                  </Field>
+                  <button
+                    type="submit"
+                    className="rounded bg-slate-800 text-white p-2 border"
+                  >
+                    Save
+                  </button>
+                </form>
+              )}
+            ></Form>
           </div>
         )}
       </div>
